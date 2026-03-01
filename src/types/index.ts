@@ -11,6 +11,14 @@ export interface ContextEntry {
   state: PatientState;
   summary: string;
   detail: string;
+  conversation?: ConversationTurn[];
+  imageId?: string;
+}
+
+export interface ConversationTurn {
+  role: "user" | "assistant" | "system";
+  text: string;
+  timestamp: string;
 }
 
 export interface CurrentContext {

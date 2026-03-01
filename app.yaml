@@ -1,0 +1,10 @@
+name: CareCompanion
+icon: 🤝
+description: >
+  AI-powered assistive companion for dementia patients, the visually impaired,
+  and the elderly.  Features agentic LLM control, face recognition, fall
+  detection, voice interaction, proactive care, and family monitoring.
+
+bricks:
+  - arduino:keyword_spotting
+  - arduino:web_ui

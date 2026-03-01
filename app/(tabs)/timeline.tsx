@@ -1,13 +1,29 @@
-import React from "react";
+import React, { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
-import { CalendarDays, Radio } from "lucide-react-native";
+import { CalendarDays, Radio, WifiOff } from "lucide-react-native";
 import { TimelineItem } from "../../src/components/TimelineItem";
-import { mockTimeline } from "../../src/data/mockContext";
+import { ConversationModal } from "../../src/components/ConversationModal";
+import { useDeviceTimeline } from "../../src/hooks/useDevicePolling";
 import { colors, typography, shadows } from "../../src/constants/theme";
+import type { ContextEntry } from "../../src/types";
 
 export default function TimelineScreen() {
+  const { timeline, connected } = useDeviceTimeline();
+  const [selectedEntry, setSelectedEntry] = useState<ContextEntry | null>(null);
+
+  const alertCount = timeline.filter(
+    (e) => e.state === "emergency" || e.state === "confused"
+  ).length;
+  const overallStatus = alertCount > 0 ? "Attention" : "Normal";
+  const overallColor = alertCount > 0 ? colors.coral : "#27AE60";
+
+  const dateStr = new Date().toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -17,13 +33,20 @@ export default function TimelineScreen() {
             <Text style={styles.subtitle}>{"Today's Timeline"}</Text>
           </View>
           <View style={styles.headerRight}>
-            <View style={styles.liveChip}>
-              <Radio color="#27AE60" size={11} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
+            {connected ? (
+              <View style={styles.liveChip}>
+                <Radio color="#27AE60" size={11} />
+                <Text style={styles.liveText}>Live</Text>
+              </View>
+            ) : (
+              <View style={[styles.liveChip, { backgroundColor: colors.coralFaint }]}>
+                <WifiOff color={colors.coral} size={11} />
+                <Text style={[styles.liveText, { color: colors.coral }]}>Offline</Text>
+              </View>
+            )}
             <View style={styles.dateChip}>
               <CalendarDays color={colors.sage} size={14} />
-              <Text style={styles.dateChipText}>Feb 28</Text>
+              <Text style={styles.dateChipText}>{dateStr}</Text>
             </View>
           </View>
         </Animated.View>
@@ -33,18 +56,18 @@ export default function TimelineScreen() {
           style={styles.summaryBar}
         >
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{mockTimeline.length}</Text>
+            <Text style={styles.summaryValue}>{timeline.length}</Text>
             <Text style={styles.summaryLabel}>Events</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>8h 32m</Text>
-            <Text style={styles.summaryLabel}>Tracked</Text>
+            <Text style={styles.summaryValue}>{alertCount}</Text>
+            <Text style={styles.summaryLabel}>Alerts</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: "#27AE60" }]}>
-              Normal
+            <Text style={[styles.summaryValue, { color: overallColor }]}>
+              {overallStatus}
             </Text>
             <Text style={styles.summaryLabel}>Overall</Text>
           </View>
@@ -54,12 +77,15 @@ export default function TimelineScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {mockTimeline.map((entry, index) => (
+          {timeline.map((entry, index) => (
             <TimelineItem
               key={entry.id}
               entry={entry}
               index={index}
-              isLast={index === mockTimeline.length - 1}
+              isLast={index === timeline.length - 1}
+              onPress={(e) =>
+                (e.conversation || e.imageId) && setSelectedEntry(e)
+              }
             />
           ))}
 
@@ -70,6 +96,16 @@ export default function TimelineScreen() {
             </Text>
           </View>
         </ScrollView>
+
+        {selectedEntry && (selectedEntry.conversation || selectedEntry.imageId) && (
+          <ConversationModal
+            visible
+            turns={selectedEntry.conversation ?? []}
+            title={selectedEntry.summary}
+            imageId={selectedEntry.imageId}
+            onClose={() => setSelectedEntry(null)}
+          />
+        )}
       </SafeAreaView>
     </View>
   );

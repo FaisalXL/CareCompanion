@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -30,7 +30,8 @@ import {
   syncAllFaces,
   syncNotes,
   syncEverything,
-} from "../../src/data/mockApi";
+  fetchDeviceProfile,
+} from "../../src/data/api";
 import { colors, shadows, typography } from "../../src/constants/theme";
 import type {
   Medication,
@@ -73,6 +74,7 @@ type ModalFlow =
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<PatientProfile>(mockPatientProfile);
   const [modalFlow, setModalFlow] = useState<ModalFlow>(null);
+  const [deviceConnected, setDeviceConnected] = useState(false);
 
   const [medSync, setMedSync] = useState<SyncStatus>("idle");
   const [medMessage, setMedMessage] = useState("");
@@ -82,6 +84,59 @@ export default function ProfileScreen() {
   const [noteMessage, setNoteMessage] = useState("");
   const [fullSync, setFullSync] = useState<SyncStatus>("idle");
   const [fullMessage, setFullMessage] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const dp = await fetchDeviceProfile();
+      if (dp) {
+        setDeviceConnected(true);
+        setProfile((prev) => {
+          const merged = { ...prev };
+          if (dp.name) merged.name = dp.name;
+          if (dp.age) merged.age = dp.age;
+          if (dp.conditions && dp.conditions.length > 0)
+            merged.conditions = dp.conditions;
+
+          if (dp.medications && dp.medications.length > 0) {
+            const localNames = new Set(
+              prev.medications.map((m) => m.name.toLowerCase())
+            );
+            const newFromDevice = dp.medications.filter(
+              (dm) => !localNames.has(dm.name.toLowerCase())
+            );
+            merged.medications = [...prev.medications, ...newFromDevice];
+          }
+
+          if (dp.lovedOnes && dp.lovedOnes.length > 0) {
+            const deviceNames = new Set(dp.lovedOnes.map((d) => d.name.toLowerCase()));
+            const kept = prev.lovedOnes.filter(
+              (p) => !deviceNames.has(p.name.toLowerCase())
+            );
+            merged.lovedOnes = [
+              ...dp.lovedOnes.map((dl) => {
+                const existing = prev.lovedOnes.find(
+                  (p) => p.name.toLowerCase() === dl.name.toLowerCase()
+                );
+                return {
+                  ...dl,
+                  imageUri: dl.imageUri || existing?.imageUri || null,
+                };
+              }),
+              ...kept,
+            ];
+          }
+          return merged;
+        });
+      }
+    })();
+  }, []);
+
+  const medsRef = React.useRef(profile.medications);
+  useEffect(() => {
+    if (medsRef.current === profile.medications) return;
+    medsRef.current = profile.medications;
+    syncMedications(profile.medications).catch(() => {});
+  }, [profile.medications]);
 
   const closeModal = () => setModalFlow(null);
 
@@ -237,9 +292,9 @@ export default function ProfileScreen() {
     try {
       const res = await syncMedications(profile.medications);
       setMedMessage(res.message);
-      setMedSync("success");
-    } catch {
-      setMedMessage("Failed to sync medications");
+      setMedSync(res.success ? "success" : "error");
+    } catch (e: any) {
+      setMedMessage(e.message ?? "Failed to sync medications");
       setMedSync("error");
     }
     setTimeout(() => setMedSync("idle"), 3000);
@@ -250,9 +305,9 @@ export default function ProfileScreen() {
     try {
       const res = await syncAllFaces(profile.lovedOnes);
       setFaceMessage(res.message);
-      setFaceSync("success");
-    } catch {
-      setFaceMessage("Failed to sync faces");
+      setFaceSync(res.success ? "success" : "error");
+    } catch (e: any) {
+      setFaceMessage(e.message ?? "Failed to sync faces");
       setFaceSync("error");
     }
     setTimeout(() => setFaceSync("idle"), 3000);
@@ -263,9 +318,9 @@ export default function ProfileScreen() {
     try {
       const res = await syncNotes(profile.notes);
       setNoteMessage(res.message);
-      setNoteSync("success");
-    } catch {
-      setNoteMessage("Failed to sync notes");
+      setNoteSync(res.success ? "success" : "error");
+    } catch (e: any) {
+      setNoteMessage(e.message ?? "Failed to sync notes");
       setNoteSync("error");
     }
     setTimeout(() => setNoteSync("idle"), 3000);
@@ -276,9 +331,9 @@ export default function ProfileScreen() {
     try {
       const res = await syncEverything(profile);
       setFullMessage(res.message);
-      setFullSync("success");
-    } catch {
-      setFullMessage("Full sync failed");
+      setFullSync(res.success ? "success" : "error");
+    } catch (e: any) {
+      setFullMessage(e.message ?? "Full sync failed");
       setFullSync("error");
     }
     setTimeout(() => setFullSync("idle"), 4000);
@@ -519,9 +574,11 @@ export default function ProfileScreen() {
             style={[styles.section, styles.fullSyncSection]}
           >
             <View style={styles.deviceInfo}>
-              <Wifi color={colors.sage} size={20} />
-              <Text style={styles.deviceText}>
-                {"Arduino Uno R4 · ARD-UNO-R4-0042"}
+              <Wifi color={deviceConnected ? colors.sage : colors.coral} size={20} />
+              <Text style={[styles.deviceText, !deviceConnected && { color: colors.coral }]}>
+                {deviceConnected
+                  ? "CareCompanion · Connected"
+                  : "CareCompanion · Offline"}
               </Text>
             </View>
             <SyncButton
