@@ -1,0 +1,10 @@
+{
+  "profiles": [
+    {
+      "name": "Faisal",
+      "relationship": "Grandson",
+      "image": "faisal.png",
+      "notes": "Studies at UCI, visits on weekends"
+    }
+  ]
+}
